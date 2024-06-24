@@ -1,0 +1,31 @@
+# Ignore virtual environments
+venv/
+.venv/
+
+# Ignore Python compiled files and bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore environment files and sensitive configuration
+.flaskenv
+instance/  # If used for per-instance configuration
+config.py  # Only if it contains sensitive information
+
+# Ignore logs and temporary files
+*.log
+logs/
+*.tmp
+
+# Ignore IDE and editor-specific files
+.vscode/
+.idea/
+
+# Ignore package management-related files
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Ignore Docker-related files
+.dockerignore
+docker-compose.yml
+docker-compose.override.yml
