@@ -87,7 +87,7 @@ export default function OpenAiChatBot() {
     <div
       style={{
         width: "70%",
-        height: "100%",
+        height: "90%",
       }}
     >
       <MainContainer>
