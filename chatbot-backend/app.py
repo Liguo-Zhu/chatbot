@@ -7,19 +7,40 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 # Load the .env file
 load_dotenv()
-# Set your OpenAI API key
+# Set your OpenAI API key and assistant ID here
 open_api_key=os.getenv("OPENAI_API_KEY")
-# Set your assistant ID here
-my_assistant_id=os.getenv("ASSISTANT_ID")
-# Set your stock search API key
+my_assistant_id=os.getenv("ASSISTANT_KEY")
 fmp_api_key=os.getenv("FMPAPIKEY")
-# Set your OpenAI API key
+agoda_com_key=os.getenv("AGODA_COM_KEY")
+# Define OpenAI API endpoint and your API key
 open_ai_chat_endpoint = "https://api.openai.com/v1/chat/completions"
 
 app = Flask(__name__)
 CORS(app)
 
-def get_stock_price(symbol):
+def search_flights_agoda_com(origin, destination, date):
+    url = "https://agoda-com.p.rapidapi.com/flights/search-one-way"
+    querystring = {"origin": origin, "destination": destination, "departureDate": date}
+    headers = {
+        "x-rapidapi-key": agoda_com_key,
+        "x-rapidapi-host": "agoda-com.p.rapidapi.com"
+    }
+    response = requests.get(url, headers=headers, params=querystring)
+    try:
+        # If the request was successful, proceed with processing the response
+        response.raise_for_status()
+        data=response.json()['data']['bundles']
+        print("---------------------------------------")
+        print(data)
+        return str(data)
+    except requests.exceptions.HTTPError as e:
+    # Handle the HTTP error
+        return f"HTTP error:{e}"
+    except Exception as e:
+        # Handle other possible errors (network issues, etc.)
+        return f"Error:{e}"
+    
+def get_stock_price(symbol: str):
     api_url=f"https://financialmodelingprep.com/api/v3/quote-short/{symbol}?apikey={fmp_api_key}"
     response = requests.get(api_url)
     try:
@@ -34,7 +55,7 @@ def get_stock_price(symbol):
         # Handle other possible errors (network issues, etc.)
         return f"Error:{e}"
 
-def get_weather(city):
+def get_weather(city: str):
     api_url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={os.getenv('WEATHER_API_KEY')}"
     response = requests.get(api_url)
     try:
@@ -142,6 +163,7 @@ def stock(symbol=""):
 @app.route("/chat",methods=['POST'])
 def completions():
     # Retrieve data from the incoming POST request
+    # model = request.json['model']
     messages = request.json['messages']
     # Prepare headers with your API key
     headers = {
@@ -154,13 +176,13 @@ def completions():
         'messages': messages
     }
     try:
-        # Make a POST request to the OpenAI endpoint
+        # # Make a POST request to the OpenAI endpoint
         response = requests.post(open_ai_chat_endpoint, json=payload, headers=headers)
-        # Parse the response as JSON
+        # # Parse the response as JSON
         response_data = response.json()
-        # Extract the completed chat message
+        # # Extract the completed chat message
         completion = response_data['choices'][0]['message']['content']
-        # Return the completion as a JSON response
+        # # Return the completion as a JSON response
         return jsonify(completion)
     except Exception as e:
         # Handle any errors that occur during the request
@@ -171,6 +193,7 @@ def completions():
 def assistants():
     try:
         # Retrieve data from the incoming POST request
+        # model = request.json['model']
         message = request.json['messages']['content']
         # return message
         result = get_assistant_response(message)
@@ -182,11 +205,11 @@ def assistants():
 def functions():
     try:
         input_message=request.json['messages']['content']
-        # Step 1: Create a Thread
+        # Step 2: Create a Thread
         thread = client.beta.threads.create()
         res_results=None
 
-        # Step 2: Add a Message to a Thread
+        # Step 3: Add a Message to a Thread
         message = client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
@@ -194,7 +217,7 @@ def functions():
             # content=f"Can you please provide me stock price of {symbol}?"
         )
 
-        # Step 3: Run the Assistant
+        # Step 4: Run the Assistant
         run = client.beta.threads.runs.create(
             thread_id=thread.id,
             assistant_id=my_assistant_id,
@@ -202,8 +225,8 @@ def functions():
         )
 
         while True:
-            # Wait for 3 seconds
-            time.sleep(3)
+            # Wait for 2 seconds
+            time.sleep(2)
             # Retrieve the run status
             run_status = client.beta.threads.runs.retrieve(
                 thread_id=thread.id,
@@ -231,7 +254,7 @@ def functions():
                             "output": str(output)
                         })
                     elif func_name == "search_flights":
-                        output = search_flights(origin=arguments['origin'],destination=arguments['destination'],date=arguments['date'])
+                        output = search_flights_agoda_com(origin=arguments['origin'],destination=arguments['destination'],date=arguments['date'])
                         tool_outputs.append({
                             "tool_call_id": action['id'],
                             "output": str(output)
@@ -244,20 +267,27 @@ def functions():
                         })
                     else:
                         raise ValueError(f"Unknown function: {func_name}")
+                # print("-> Submitting outputs back to the Assistant...")
                 client.beta.threads.runs.submit_tool_outputs(
                     thread_id=thread.id,
                     run_id=run.id,
                     tool_outputs=tool_outputs
                 )
             else:
-                time.sleep(2)
+                # print(f"--->{'\033[93m'}Waiting for the assistant to process......")
+                time.sleep(1)
         return res_results,200
     except Exception as e:
         return str(e),500
 
-@app.route("/flights",methods=['GET'])
-def flight():
-    res=search_flights("PER","BNE","2024-07-25")
+@app.route("/flights/amadeus",methods=['GET'])
+def flight_amadeus():
+    res=search_flights("PER","BNE","2024-08-25")
+    return res
+
+@app.route("/flights/agoda",methods=['GET'])
+def flight_agoda():
+    res=search_flights_agoda_com("PER","BNE","2024-08-25")
     return res
 
 if __name__ == "__main__":
